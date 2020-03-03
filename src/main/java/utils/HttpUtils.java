@@ -9,19 +9,39 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.config.Registry;
+import org.apache.http.config.RegistryBuilder;
+import org.apache.http.conn.socket.ConnectionSocketFactory;
+import org.apache.http.conn.socket.LayeredConnectionSocketFactory;
+import org.apache.http.conn.socket.PlainConnectionSocketFactory;
+import org.apache.http.conn.ssl.DefaultHostnameVerifier;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.ssl.SSLContexts;
+import org.apache.http.conn.ssl.TrustStrategy;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.*;
 
 
@@ -33,10 +53,7 @@ import java.util.*;
  */
 public class HttpUtils {
 
-    private static CloseableHttpClient httpclient                       = HttpClients
-                                                                            .custom()
-                                                                            .setRetryHandler(new RetryHandler())
-                                                                            .build();
+    private static CloseableHttpClient httpclient                       = getHttpClient();
     private final static Logger logger                                  = LogManager.getLogger("util.HttpUtils");
     /** 默认重试次数 */
     private final static int DEFAULT_RETRY_TIMES                        = 3;
@@ -53,6 +70,33 @@ public class HttpUtils {
 
     public static Request generateRequest(String host, Integer port, String path) throws URISyntaxException {
         return new Request(host, port, path);
+    }
+
+    private static CloseableHttpClient getHttpClient() {
+        RegistryBuilder<ConnectionSocketFactory> registryBuilder = RegistryBuilder.<ConnectionSocketFactory>create();
+        ConnectionSocketFactory plainSF = new PlainConnectionSocketFactory();
+        registryBuilder.register("http", plainSF);
+
+        //指定信任密钥存储对象和连接套接字工厂
+        try {
+            KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            //信任任何链接
+            SSLContext sslContext = SSLContexts.custom().loadTrustMaterial(trustStore, (t,s) -> true).build();
+            NoopHostnameVerifier defaultHostnameVerifier = new NoopHostnameVerifier();
+            LayeredConnectionSocketFactory sslSF = new SSLConnectionSocketFactory(sslContext, defaultHostnameVerifier);
+            registryBuilder.register("https", sslSF);
+        } catch (KeyStoreException e) {
+            throw new RuntimeException(e);
+        } catch (KeyManagementException e) {
+            throw new RuntimeException(e);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+        Registry<ConnectionSocketFactory> registry = registryBuilder.build();
+        //设置连接管理器
+        PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager(registry);
+        //构建客户端
+        return HttpClientBuilder.create().setRetryHandler(new RetryHandler()).setConnectionManager(connManager).build();
     }
 
     public static class Request {
