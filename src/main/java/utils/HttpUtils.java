@@ -135,6 +135,9 @@ public class HttpUtils {
         }
 
         private Request(String uri) throws URISyntaxException {
+            if (!uri.startsWith("http")) {
+                uri = "http://" + uri;
+            }
             this.uri = new URI(uri);
         }
 
