@@ -194,7 +194,7 @@ public class HttpUtils {
         }
 
         public String doGet() {
-            return HttpUtils.sendGet(uri, params, headers, retryTimes, timeoutMills, responseCharset);
+            return response2String(HttpUtils.sendGet(uri, params, headers, retryTimes, timeoutMills), uri, responseCharset);
         }
 
         public String doPost() {
@@ -202,11 +202,15 @@ public class HttpUtils {
             if (this.body != null) {
                 entity = new StringEntity(this.body, ContentType.create(this.bodyContentType, this.bodyContentTypeCharset));
             }
-            return HttpUtils.sendPost(uri, entity, params, headers, retryTimes, timeoutMills, responseCharset);
+            return response2String(HttpUtils.sendPost(uri, entity, params, headers, retryTimes, timeoutMills), uri, responseCharset);
+        }
+
+        public byte[] downloadFile() {
+            return response2ByteArr(HttpUtils.sendGet(uri, params, headers, retryTimes, timeoutMills), uri);
         }
     }
 
-    private static String sendPost(URI uri, StringEntity body, Map<String, String> params, Map<String, String> headers, int retryTimes, int timeoutMills, String responseCharset) {
+    private static CloseableHttpResponse sendPost(URI uri, StringEntity body, Map<String, String> params, Map<String, String> headers, int retryTimes, int timeoutMills) {
 
         param2Uri(params, uri);
 
@@ -235,11 +239,11 @@ public class HttpUtils {
             logger.error("发起post请求出现异常", e);
         }
 
-        return response2String(response, uri, responseCharset);
+        return response;
     }
 
 
-    private static String sendGet(URI uri, Map<String, String> params, Map<String, String> headers, int retryTimes, int timeoutMills, String responseCharset) {
+    private static CloseableHttpResponse sendGet(URI uri, Map<String, String> params, Map<String, String> headers, int retryTimes, int timeoutMills) {
 
         param2Uri(params, uri);
 
@@ -270,7 +274,7 @@ public class HttpUtils {
             e.printStackTrace();
         }
 
-        return response2String(response, uri, responseCharset);
+        return response;
     }
 
     private static String response2String(CloseableHttpResponse response, URI uri, String charset) {
@@ -299,6 +303,31 @@ public class HttpUtils {
         return result;
     }
 
+    private static byte[] response2ByteArr(CloseableHttpResponse response, URI uri) {
+        byte[] result = null;
+
+        if (response != null) {
+            try {
+                if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+                    HttpEntity entity = response.getEntity();
+                    result = EntityUtils.toByteArray(entity);
+                } else{
+                    logger.error(uri.toString() + "地址请求失败，响应代码为：" + response.getStatusLine().getStatusCode());
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                logger.error("解析respons出现异常", e);
+            } finally {
+                try {
+                    response.close();
+                } catch (IOException e) {
+                    //skip
+                }
+            }
+        }
+
+        return result;
+    }
     // ==== 私有工具方法 ====
 
     /**
