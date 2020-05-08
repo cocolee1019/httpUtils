@@ -215,7 +215,7 @@ public class HttpUtils {
 
     private static CloseableHttpResponse sendPost(URI uri, StringEntity body, Map<String, String> params, Map<String, String> headers, int retryTimes, int timeoutMills) {
 
-        param2Uri(params, uri);
+        uri = param2Uri(params, uri);
 
         if (uri == null) {
             return null;
@@ -248,7 +248,7 @@ public class HttpUtils {
 
     private static CloseableHttpResponse sendGet(URI uri, Map<String, String> params, Map<String, String> headers, int retryTimes, int timeoutMills) {
 
-        param2Uri(params, uri);
+        uri = param2Uri(params, uri);
 
         if (uri == null) {
             return null;
